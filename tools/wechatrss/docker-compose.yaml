@@ -1,18 +1,47 @@
-version: '3'
+version: "3.9"
+
 services:
-  wechat2rss:
-    container_name: wechat2rss
-    image: "ttttmr/wechat2rss:latest"
+  db:
+    image: mysql:latest
+    command: --default-authentication-plugin=mysql_native_password
     environment:
-      - LIC_EMAIL=i@xlab.app # 授权邮箱
-      - LIC_CODE=xxxx # 激活码
-      - RSS_HOST=192.168.11.22:8080 # 服务器地址
+      # 请修改为自己的密码
+      MYSQL_ROOT_PASSWORD: 123456
+      TZ: "Asia/Shanghai"
+      MYSQL_DATABASE: "wewe-rss"
+    # ports:
+    #   - 13306:3306
     volumes:
-      - ./data:/wechat2rss # 数据持久化保存
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 45s
+      interval: 10s
+      retries: 10
+
+  app:
+    image: cooderl/wewe-rss:latest
     ports:
-      - "8080:8080" # 监听端口映射，例如修改到8081端口，8081:8080
-    deploy: # 自动重启策略
-      restart_policy:
-        condition: on-failure
-        max_attempts: 3
-        window: 10s
+      - 4000:4000
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # 数据库连接地址
+      - DATABASE_URL=mysql://root:123456@db:3306/wewe-rss?schema=public&connect_timeout=30&pool_timeout=30&socket_timeout=30
+      # 服务接口请求授权码
+      - AUTH_CODE=123567
+      # 提取全文内容模式
+      # - FEED_MODE=fulltext
+      # 定时更新订阅源Cron表达式
+      # - CRON_EXPRESSION=35 5,17 * * *
+      # 服务接口请求限制，每分钟请求次数
+      # - MAX_REQUEST_PER_MINUTE=60
+      # 外网访问时，需设置为服务器的公网 IP 或者域名地址
+      # - SERVER_ORIGIN_URL=http://localhost:4000
+
+networks:
+  wewe-rss:
+
+volumes:
+  db_data:
